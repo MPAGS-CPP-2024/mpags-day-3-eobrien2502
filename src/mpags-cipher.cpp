@@ -1,6 +1,7 @@
 #include "ProcessCommandLine.hpp"
 #include "RunCaesarCipher.hpp"
 #include "TransformChar.hpp"
+#include "CaesarCipher.hpp"
 
 #include <cctype>
 #include <fstream>
@@ -8,23 +9,21 @@
 #include <string>
 #include <vector>
 
+
+
 int main(int argc, char* argv[])
 {
     // Convert the command-line arguments into a more easily usable form
     const std::vector<std::string> cmdLineArgs{argv, argv + argc};
 
-    // Options that might be set by the command-line arguments
-    bool helpRequested{false};
-    bool versionRequested{false};
-    std::string inputFile{""};
-    std::string outputFile{""};
-    std::string cipherKey{""};
-    bool encrypt{true};
+    // Need to initialise the new data structure ProgramSettings
+    ProgramSettings cmdLineSettings {false, false, "", "", "", CipherMode::Encrypt};
+
+   
 
     // Process command line arguments
     const bool cmdLineStatus{
-        processCommandLine(cmdLineArgs, helpRequested, versionRequested,
-                           inputFile, outputFile, cipherKey, encrypt)};
+        processCommandLine(cmdLineArgs, cmdLineSettings)};
 
     // Any failure in the argument processing means we can't continue
     // Use a non-zero return value to indicate failure
@@ -33,7 +32,7 @@ int main(int argc, char* argv[])
     }
 
     // Handle help, if requested
-    if (helpRequested) {
+    if (cmdLineSettings.helpRequested) {
         // Line splitting for readability
         std::cout
             << "Usage: mpags-cipher [-h/--help] [--version] [-i <file>] [-o <file>] [-k <key>] [--encrypt/--decrypt]\n\n"
@@ -59,7 +58,7 @@ int main(int argc, char* argv[])
     // Handle version, if requested
     // Like help, requires no further action,
     // so return from main with zero to indicate success
-    if (versionRequested) {
+    if (cmdLineSettings.versionRequested) {
         std::cout << "0.2.0" << std::endl;
         return 0;
     }
@@ -69,12 +68,12 @@ int main(int argc, char* argv[])
     std::string inputText;
 
     // Read in user input from stdin/file
-    if (!inputFile.empty()) {
+    if (!cmdLineSettings.inputFile.empty()) {
         // Open the file and check that we can read from it
-        std::ifstream inputStream{inputFile};
+        std::ifstream inputStream{cmdLineSettings.inputFile};
         if (!inputStream.good()) {
             std::cerr << "[error] failed to create istream on file '"
-                      << inputFile << "'" << std::endl;
+                      << cmdLineSettings.inputFile << "'" << std::endl;
             return 1;
         }
 
@@ -91,43 +90,24 @@ int main(int argc, char* argv[])
         }
     }
 
-    // We have the key as a string, but the Caesar cipher needs an unsigned long, so we first need to convert it
-    // We default to having a key of 0, i.e. no encryption, if no key was provided on the command line
-    std::size_t caesarKey{0};
-    if (!cipherKey.empty()) {
-        // Before doing the conversion we should check that the string contains a
-        // valid positive integer.
-        // Here we do that by looping through each character and checking that it
-        // is a digit. What is rather hard to check is whether the number is too
-        // large to be represented by an unsigned long, so we've omitted that for
-        // the time being.
-        // (Since the conversion function std::stoul will throw an exception if the
-        // string does not represent a valid unsigned long, we could check for and
-        // handled that instead but we only cover exceptions very briefly on the
-        // final day of this course - they are a very complex area of C++ that
-        // could take an entire course on their own!)
-        for (const auto& elem : cipherKey) {
-            if (!std::isdigit(elem)) {
-                std::cerr
-                    << "[error] cipher key must be an unsigned long integer for Caesar cipher,\n"
-                    << "        the supplied key (" << cipherKey
-                    << ") could not be successfully converted" << std::endl;
-                return 1;
-            }
-        }
-        caesarKey = std::stoul(cipherKey);
-    }
+   
 
-    // Run the Caesar cipher (using the specified key and encrypt/decrypt flag) on the input text
-    std::string outputText{runCaesarCipher(inputText, caesarKey, encrypt)};
+    // Run the caesar cipher (using the specified key and encrypt/decrypt flag) on the input text
+    // This is creating an object instance so that we can use all of the data and function members of the class in later code.
+    CaesarCipher cipher {cmdLineSettings.cipherKey};
+
+  
+    
+    std::string outputText{cipher.applyCipher(inputText, cmdLineSettings.cipherMode)};
+
 
     // Output the encrypted/decrypted text to stdout/file
-    if (!outputFile.empty()) {
+    if (!cmdLineSettings.outputFile.empty()) {
         // Open the file and check that we can write to it
-        std::ofstream outputStream{outputFile};
+        std::ofstream outputStream{cmdLineSettings.outputFile};
         if (!outputStream.good()) {
             std::cerr << "[error] failed to create ostream on file '"
-                      << outputFile << "'" << std::endl;
+                      << cmdLineSettings.outputFile << "'" << std::endl;
             return 1;
         }
 
